@@ -1,0 +1,20 @@
+$Searcher = [adsisearcher]""
+$Searcher.Filter = "(&(objectClass=user)(objectCategory=person))"
+
+# Calculate the filetime for 90 days ago
+$DateCutoff = (Get-Date).AddDays(-90).ToFileTime()
+
+$Searcher.FindAll() | ForEach-Object {
+    $Props = $_.Properties
+    if ($Props.lastlogontimestamp) {
+        $LastLogon = [datetime]::FromFileTime($Props.lastlogontimestamp[0])
+        
+        # Check if older than 90 days
+        if ($Props.lastlogontimestamp[0] -lt $DateCutoff) {
+            [PSCustomObject]@{
+                Name       = $Props.name[0]
+                LastLogon  = $LastLogon
+            }
+        }
+    }
+}
