@@ -1,0 +1,11 @@
+$Searcher = [adsisearcher]""
+# Filter: Users WITH an SPN, but NOT the 'krbtgt' account
+$Searcher.Filter = "(&(objectClass=user)(servicePrincipalName=*)(!(cn=krbtgt)))"
+
+$Searcher.FindAll() | ForEach-Object {
+    $Obj = $_.Properties
+    [PSCustomObject]@{
+        Name  = $Obj.name[0]
+        SPN   = $Obj.serviceprincipalname -join ", "
+    }
+}
