@@ -1,15 +1,1 @@
-# 1. Setup
-$DC   = "192.168.0.49"
-$User = 'texas\testaccount'
-$Pass = 'password123!'
-
-# 2. Connect (Note: Port 3268 prevents referral errors)
-$Ldap = "LDAP://$DC:3268/DC=texas,DC=local"
-$Root = New-Object System.DirectoryServices.DirectoryEntry($Ldap, $User, $Pass)
-
-# 3. Search
-$Searcher = [adsisearcher]$Root
-$Searcher.Filter = "(objectClass=user)"
-
-# 4. Output Names Only
-$Searcher.FindAll() | ForEach-Object { $_.Properties.name }
+([adsisearcher]"(&(objectClass=user)(objectCategory=person))").FindAll().Properties.name
