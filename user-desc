@@ -1,4 +1,16 @@
-$Searcher = [adsisearcher]""
+# 1. Define Creds & Target
+$DC_IP = "192.168.0.49"
+$User = 'texas\erik'
+$Pass = 'P@$$Word'
+
+# 2. Build the Authenticated Root Object (The "Bind")
+# Note: We must point to the LDAP IP since we can't resolve the domain name
+$Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DC_IP", $User, $Pass)
+
+# 3. Create the Searcher based on that Root
+$Searcher = [adsisearcher]$Root
+
+# 4. NOW apply the filter (Everything else is the same)
 $Searcher.Filter = "(&(objectClass=user)(objectCategory=person)(description=*))"
 $Searcher.PageSize = 1000
 
