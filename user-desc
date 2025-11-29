@@ -1,27 +1,30 @@
-# 2. Bind to the Domain Root
-Write-Host "Binding to LDAP..." -ForegroundColor Cyan
-$Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DC_IP/DC=texas,DC=local", $User, $Pass)
+# 2. BIND TO GLOBAL CATALOG (Port 3268)
+# We added ":3268" after the IP address.
+Write-Host "Binding to Global Catalog..." -ForegroundColor Cyan
+$Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DC_IP:3268/DC=texas,DC=local", $User, $Pass)
 
 # 3. Create Searcher
 $Searcher = [adsisearcher]$Root
+
+# We still keep this 'None' just to be safe, though GC usually ignores it.
 $Searcher.ReferralChasing = [System.DirectoryServices.ReferralChasingOption]::None
+
 $Searcher.PageSize = 1000
 $Searcher.SearchScope = "Subtree"
 
 # 4. Filter: Find all people
 $Searcher.Filter = "(&(objectClass=user)(objectCategory=person))"
 
-# 5. Run the Search and Store Raw Results
-Write-Host "Querying Domain Controller..." -ForegroundColor Cyan
+# 5. Run the Search
+Write-Host "Querying..." -ForegroundColor Cyan
+
 try {
     $RawResults = $Searcher.FindAll()
     
-    # Check if we found anything before trying to process
     if ($RawResults.Count -eq 0) {
-        Write-Host "Success, but 0 users were found. Check the Base DN path." -ForegroundColor Yellow
+        Write-Host "Success, but 0 users were found." -ForegroundColor Yellow
     } 
     else {
-        # 6. Process results into a Clean List variable
         $CleanList = $RawResults | ForEach-Object {
             $Obj = $_.Properties
             [PSCustomObject]@{
@@ -30,14 +33,10 @@ try {
             }
         }
 
-        # 7. Display the table (This was the part breaking before)
         Write-Host "Found $($CleanList.Count) users:" -ForegroundColor Green
         $CleanList | Format-Table -AutoSize
     }
 
 } catch {
     Write-Host "CRITICAL ERROR: $($_.Exception.Message)" -ForegroundColor Red
-    if ($_.Exception.InnerException) {
-        Write-Host "Reason: $($_.Exception.InnerException.Message)" -ForegroundColor Yellow
-    }
 }
