@@ -1,42 +1,43 @@
-# 1. Credentials
-$DC_IP = "192.168.0.49"
-$User = 'texas\testaccount'
-$Pass = 'password123!'
-
-# 2. Bind to the specific Domain Root
-# (If you don't use the specific DN, referrals happen much more often)
+# 2. Bind to the Domain Root
+Write-Host "Binding to LDAP..." -ForegroundColor Cyan
 $Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DC_IP/DC=texas,DC=local", $User, $Pass)
 
 # 3. Create Searcher
 $Searcher = [adsisearcher]$Root
-
-# --- THE FIX IS HERE ---
-# Tell the searcher to ignore "Go ask that guy" messages.
 $Searcher.ReferralChasing = [System.DirectoryServices.ReferralChasingOption]::None
-# -----------------------
-
-# 4. Filter & Scope
-$Searcher.Filter = "(&(objectClass=user)(objectCategory=person))"
 $Searcher.PageSize = 1000
 $Searcher.SearchScope = "Subtree"
 
-Write-Host "Searching..." -ForegroundColor Cyan
+# 4. Filter: Find all people
+$Searcher.Filter = "(&(objectClass=user)(objectCategory=person))"
 
-# 5. Run
+# 5. Run the Search and Store Raw Results
+Write-Host "Querying Domain Controller..." -ForegroundColor Cyan
 try {
-    $Results = $Searcher.FindAll()
+    $RawResults = $Searcher.FindAll()
     
-    if ($Results.Count -eq 0) {
-        Write-Host "No results found. Check your Filter." -ForegroundColor Yellow
-    } else {
-        foreach ($Res in $Results) {
-            $Obj = $Res.Properties
+    # Check if we found anything before trying to process
+    if ($RawResults.Count -eq 0) {
+        Write-Host "Success, but 0 users were found. Check the Base DN path." -ForegroundColor Yellow
+    } 
+    else {
+        # 6. Process results into a Clean List variable
+        $CleanList = $RawResults | ForEach-Object {
+            $Obj = $_.Properties
             [PSCustomObject]@{
                 Name = $Obj.name[0]
                 DistinguishedName = $Obj.distinguishedname[0]
             }
-        } | Format-Table -AutoSize
+        }
+
+        # 7. Display the table (This was the part breaking before)
+        Write-Host "Found $($CleanList.Count) users:" -ForegroundColor Green
+        $CleanList | Format-Table -AutoSize
     }
+
 } catch {
-    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "CRITICAL ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    if ($_.Exception.InnerException) {
+        Write-Host "Reason: $($_.Exception.InnerException.Message)" -ForegroundColor Yellow
+    }
 }
