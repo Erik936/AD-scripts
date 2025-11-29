@@ -1,0 +1,11 @@
+$Searcher = [adsisearcher]""
+$Searcher.Filter = "(&(objectClass=user)(objectCategory=person)(description=*))"
+$Searcher.PageSize = 1000
+
+$Searcher.FindAll() | ForEach-Object {
+    $Obj = $_.Properties
+    [PSCustomObject]@{
+        Name        = $Obj.name[0]
+        Description = $Obj.description[0]
+    }
+} | Format-Table -AutoSize
