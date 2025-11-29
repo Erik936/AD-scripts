@@ -1,42 +1,50 @@
-# 2. BIND TO GLOBAL CATALOG (Port 3268)
-# We added ":3268" after the IP address.
-Write-Host "Binding to Global Catalog..." -ForegroundColor Cyan
-$Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DC_IP:3268/DC=texas,DC=local", $User, $Pass)
+$DC_IP = "192.168.0.49"
+$User = 'texas\testaccount'
+$Pass = 'password123!'
 
-# 3. Create Searcher
-$Searcher = [adsisearcher]$Root
+Write-Host "--- DIAGNOSTIC MODE ---" -ForegroundColor Cyan
 
-# We still keep this 'None' just to be safe, though GC usually ignores it.
-$Searcher.ReferralChasing = [System.DirectoryServices.ReferralChasingOption]::None
+# STEP 1: Check Network Port
+# We check Port 389 (LDAP) and 3268 (Global Catalog)
+$Port389 = Test-NetConnection -ComputerName $DC_IP -Port 389 -WarningAction SilentlyContinue
+$Port3268 = Test-NetConnection -ComputerName $DC_IP -Port 3268 -WarningAction SilentlyContinue
 
-$Searcher.PageSize = 1000
-$Searcher.SearchScope = "Subtree"
+if ($Port389.TcpTestSucceeded) { Write-Host "Port 389 (LDAP): OPEN" -ForegroundColor Green } 
+else { Write-Host "Port 389 (LDAP): BLOCKED/CLOSED" -ForegroundColor Red }
 
-# 4. Filter: Find all people
-$Searcher.Filter = "(&(objectClass=user)(objectCategory=person))"
+if ($Port3268.TcpTestSucceeded) { Write-Host "Port 3268 (GC): OPEN" -ForegroundColor Green } 
+else { Write-Host "Port 3268 (GC): BLOCKED/CLOSED" -ForegroundColor Red }
 
-# 5. Run the Search
-Write-Host "Querying..." -ForegroundColor Cyan
+# STEP 2: Test Credentials against RootDSE
+# This ignores the 'DC=texas...' path and just asks the server "Who are you?"
+Write-Host "`nAttempting to Bind to RootDSE..." -ForegroundColor Cyan
 
 try {
-    $RawResults = $Searcher.FindAll()
+    # Bind to RootDSE
+    $RootDSE = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DC_IP/RootDSE", $User, $Pass)
     
-    if ($RawResults.Count -eq 0) {
-        Write-Host "Success, but 0 users were found." -ForegroundColor Yellow
-    } 
-    else {
-        $CleanList = $RawResults | ForEach-Object {
-            $Obj = $_.Properties
-            [PSCustomObject]@{
-                Name = $Obj.name[0]
-                DistinguishedName = $Obj.distinguishedname[0]
-            }
-        }
-
-        Write-Host "Found $($CleanList.Count) users:" -ForegroundColor Green
-        $CleanList | Format-Table -AutoSize
+    # Force it to talk to us
+    $DefaultNamingContext = $RootDSE.defaultNamingContext
+    
+    Write-Host "SUCCESS! Credentials are valid." -ForegroundColor Green
+    Write-Host "Correct Domain Path is: $DefaultNamingContext" -ForegroundColor Yellow
+    
+    # STEP 3: Run the Search using the path the Server gave us
+    Write-Host "`nRunning Search using auto-discovered path..." -ForegroundColor Cyan
+    
+    $SearchRoot = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DC_IP/$DefaultNamingContext", $User, $Pass)
+    $Searcher = [adsisearcher]$SearchRoot
+    $Searcher.Filter = "(&(objectClass=user)(objectCategory=person))"
+    
+    # Limit results to 1 to test speed
+    $Searcher.SizeLimit = 1
+    
+    $Result = $Searcher.FindOne()
+    
+    if ($Result) {
+        Write-Host "Search Succeeded! Found user: $($Result.Properties.name)" -ForegroundColor Green
+    } else {
+        Write-Host "Search ran, but found 0 users." -ForegroundColor Yellow
     }
 
-} catch {
-    Write-Host "CRITICAL ERROR: $($_.Exception.Message)" -ForegroundColor Red
 }
