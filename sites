@@ -1,0 +1,25 @@
+# 1. Credentials/Binding (Or rely on RunAs)
+$Searcher = [adsisearcher]""
+# Point to the Configuration Naming Context (where Subnets live)
+$RootDSE = [adsi]"LDAP://RootDSE"
+$Config  = $RootDSE.configurationNamingContext
+$Searcher.SearchRoot = [adsi]"LDAP://$Config"
+
+# 2. Filter for Subnets
+$Searcher.Filter = "(objectClass=subnet)"
+
+# 3. Run
+$Searcher.FindAll() | ForEach-Object {
+    $Props = $_.Properties
+    
+    # Extract the 'siteObject' (It looks like CN=Default-First-Site,CN=Sites...)
+    # We clean it up to just get the Site Name
+    $SiteDN  = $Props.siteobject[0]
+    $SiteName = ($SiteDN -split ",")[0].Replace("CN=", "")
+
+    [PSCustomObject]@{
+        CIDR     = $Props.name[0]
+        Site     = $SiteName
+        Location = $Props.location[0] # Often blank, but gold if filled out
+    }
+} | Sort-Object Site | Format-Table -AutoSize
