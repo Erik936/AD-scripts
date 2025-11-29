@@ -1,0 +1,11 @@
+# Change "Domain Admins" to whatever group you want
+$Group = ([adsisearcher]"(name=Domain Admins)").FindOne()
+
+if ($Group) {
+    Write-Host "Members of Domain Admins:" -ForegroundColor Green
+    # Get the DirectoryEntry to access properties easily
+    $Group.GetDirectoryEntry().member | ForEach-Object {
+        # $_ is the Distinguished Name (CN=Bob,CN=Users...)
+        Write-Host " - $_"
+    }
+}
