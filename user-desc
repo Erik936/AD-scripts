@@ -1,1 +1,1 @@
-([adsisearcher]"(&(objectClass=user)(objectCategory=person))").FindAll().Properties.name
+([adsisearcher]"(&(objectClass=user)(objectCategory=person))").FindAll() | ForEach-Object { [PSCustomObject]@{ Name=$_.Properties.name[0]; Description=$_.Properties.description[0] } } | Format-Table -AutoSize
